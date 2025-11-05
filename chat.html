@@ -1,42 +1,41 @@
-<!DOCTYPE html>
+<!-- chat.html -->
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat IA – DeepSeek</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <meta charset="utf-8" />
+  <title>Chat</title>
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="
+      default-src 'self';
+      script-src 'self';
+      style-src 'self';
+      img-src 'self' data:;
+      connect-src 'self';
+      object-src 'none';
+      base-uri 'self';
+    "
+  />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="chat-container">
-    <header class="chat-header">
-      <div class="header-left">
-        <button class="btn-back" onclick="volverInicio()">
-          <i class="fas fa-arrow-left"></i>
-        </button>
-        <h2 id="titulo-sesion-chat">Cargando...</h2>
-      </div>
-    </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <button id="btnVolver">← Sesiones</button>
+      <h2 id="tituloSesion">Chat</h2>
+    </aside>
 
-    <div class="messages-container" id="historial-chat">
-      <div class="loading-spinner" id="loading-spinner">
-        <i class="fas fa-circle-notch fa-spin"></i>
-      </div>
-      <!-- Los mensajes se cargarán aquí dinámicamente -->
-    </div>
+    <main class="contenido">
+      <div id="historial" class="historial"></div>
 
-    <div class="input-area">
-      <textarea 
-        id="input-mensaje" 
-        placeholder="Escribe tu mensaje... (Shift + Enter para nueva línea)" 
-        rows="1"
-        onInput="ajustarAltura(this)"></textarea>
-      <button class="btn-send" onclick="enviarMensaje()" title="Enviar mensaje">
-        <i class="fas fa-paper-plane"></i>
-      </button>
-    </div>
+      <div class="entrada">
+        <textarea id="txt" rows="1" placeholder="Escribí tu mensaje..."></textarea>
+        <button id="btnEnviar">Enviar</button>
+      </div>
+    </main>
   </div>
 
-  <script src="chat.js"></script>
+  <script defer src="./chat.js"></script>
 </body>
 </html>
