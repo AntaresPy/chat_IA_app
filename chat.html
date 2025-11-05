@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat IA – DeepSeek</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  <div class="chat-container">
+    <header class="chat-header">
+      <div class="header-left">
+        <button class="btn-back" onclick="volverInicio()">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <h2 id="titulo-sesion-chat">Cargando...</h2>
+      </div>
+    </header>
+
+    <div class="messages-container" id="historial-chat">
+      <div class="loading-spinner" id="loading-spinner">
+        <i class="fas fa-circle-notch fa-spin"></i>
+      </div>
+      <!-- Los mensajes se cargarán aquí dinámicamente -->
+    </div>
+
+    <div class="input-area">
+      <textarea 
+        id="input-mensaje" 
+        placeholder="Escribe tu mensaje... (Shift + Enter para nueva línea)" 
+        rows="1"
+        onInput="ajustarAltura(this)"></textarea>
+      <button class="btn-send" onclick="enviarMensaje()" title="Enviar mensaje">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+  </div>
+
+  <script src="chat.js"></script>
+</body>
+</html>

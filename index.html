@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepSeek Chat IA</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1><i class="fas fa-robot"></i> DeepSeek Chat</h1>
+      <button class="new-chat-btn" onclick="crearNuevaSesion()">
+        <i class="fas fa-plus"></i> Nueva Conversación
+      </button>
+    </header>
+
+    <main class="chats-container">
+      <div class="loading-spinner" id="loading-spinner">
+        <i class="fas fa-circle-notch fa-spin"></i>
+      </div>
+      <div class="chats-list" id="lista-sesiones">
+        <!-- Las sesiones se cargarán aquí dinámicamente -->
+      </div>
+    </main>
+
+    <!-- Modal para nueva conversación -->
+    <div class="modal" id="modal-nueva-sesion">
+      <div class="modal-content">
+        <h2>Nueva Conversación</h2>
+        <input type="text" id="titulo-nueva-sesion" placeholder="Título de la conversación">
+        <div class="modal-buttons">
+          <button onclick="cancelarNuevaSesion()" class="btn-secondary">Cancelar</button>
+          <button onclick="confirmarNuevaSesion()" class="btn-primary">Crear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
