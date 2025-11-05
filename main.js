@@ -1,59 +1,84 @@
-const { app, BrowserWindow } = require('electron');
-require('dotenv').config();
+// main.js
+require('dotenv').config(); // <-- CARGA .env ANTES DE CUALQUIER IMPORT
+
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const isProd = process.env.NODE_ENV === 'production';
 
-const { inicializarBaseDeDatos } = require('./db');
-
-// Función principal de arranque
-app.whenReady().then(async () => {
-  console.log('🔄 Iniciando aplicación Electron...');
-  
-  try {
-    console.log('🔍 Verificando estructura de base de datos...');
-    await inicializarBaseDeDatos();
-    console.log('✅ Base de datos lista.');
-  } catch (error) {
-    console.error('❌ Error al inicializar la base de datos:', error);
-  }
-
-  createWindow();
+// Manejo de promesas no capturadas para evitar que el proceso muera sin logs claros
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
 });
 
-// Crear ventana principal
-function createWindow() {
-  console.log('🪟 Creando ventana principal...');
-  
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+// Capa de datos y AI
+const {
+  initDb,
+  crearSesion,
+  obtenerSesiones,
+  eliminarSesionDB,
+  obtenerHistorial,
+  guardarMensajePar,
+} = require('./srv/db');
+
+const { completarDeepseek } = require('./srv/ai');
+
+let mainWindow;
+
+async function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1100,
+    height: 750,
+    show: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    }
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
   });
 
-  win.loadFile(path.join(__dirname, 'index.html'));
+  await mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-  win.webContents.on('did-finish-load', () => {
-    console.log('✅ Interfaz cargada correctamente.');
-  });
-
-  win.on('closed', () => {
-    console.log('🛑 Ventana cerrada.');
-  });
+  if (!isProd) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 }
 
-// Cierre limpio en macOS y otros entornos
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    console.log('🧹 Cerrando aplicación...');
+app.whenReady().then(async () => {
+  try {
+    await initDb(); // abre una sola conexión Mongo y deja todo listo
+    await createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  } catch (err) {
+    console.error('[startup error]', err);
     app.quit();
   }
 });
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    console.log('🔁 Reabriendo ventana...');
-    createWindow();
-  }
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+// ================== IPC seguro (Renderer -> Main) ==================
+
+// Sesiones
+ipcMain.handle('sesiones:listar', async () => obtenerSesiones());
+ipcMain.handle('sesiones:crear', async (_ev, titulo) => crearSesion(titulo || 'Nueva conversación'));
+ipcMain.handle('sesiones:eliminar', async (_ev, sesionId) => eliminarSesionDB(sesionId));
+
+// Historial
+ipcMain.handle('historial:obtener', async (_ev, sesionId) => obtenerHistorial(sesionId));
+
+// Chat -> DeepSeek + persistencia
+ipcMain.handle('chat:enviar', async (_ev, { sesionId, mensajes }) => {
+  const respuesta = await completarDeepseek(mensajes);
+  const ultimoUser = mensajes[mensajes.length - 1]?.content ?? '';
+  await guardarMensajePar(sesionId, ultimoUser, respuesta);
+  return respuesta;
 });

@@ -1,43 +1,42 @@
-<!DOCTYPE html>
+<!-- index.html -->
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DeepSeek Chat IA</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <meta charset="utf-8" />
+  <title>Conversaciones</title>
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="
+      default-src 'self';
+      script-src 'self';
+      style-src 'self';
+      img-src 'self' data:;
+      connect-src 'self';
+      object-src 'none';
+      base-uri 'self';
+    "
+  />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="app-container">
-    <header class="app-header">
-      <h1><i class="fas fa-robot"></i> DeepSeek Chat</h1>
-      <button class="new-chat-btn" onclick="crearNuevaSesion()">
-        <i class="fas fa-plus"></i> Nueva Conversación
-      </button>
-    </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Sesiones</h2>
+      <div class="crear-sesion">
+        <input id="tituloSesion" type="text" placeholder="Título de sesión" />
+        <button id="btnCrearSesion">Crear</button>
+      </div>
+      <ul id="listaSesiones" class="lista"></ul>
+    </aside>
 
-    <main class="chats-container">
-      <div class="loading-spinner" id="loading-spinner">
-        <i class="fas fa-circle-notch fa-spin"></i>
-      </div>
-      <div class="chats-list" id="lista-sesiones">
-        <!-- Las sesiones se cargarán aquí dinámicamente -->
-      </div>
+    <main class="contenido">
+      <h1>DeepSeek Chat (Electron)</h1>
+      <p>Elegí una sesión a la izquierda o creá una nueva.</p>
+      <p class="hint">Doble click para abrir el chat. Botón 🗑️ para eliminar.</p>
     </main>
-
-    <!-- Modal para nueva conversación -->
-    <div class="modal" id="modal-nueva-sesion">
-      <div class="modal-content">
-        <h2>Nueva Conversación</h2>
-        <input type="text" id="titulo-nueva-sesion" placeholder="Título de la conversación">
-        <div class="modal-buttons">
-          <button onclick="cancelarNuevaSesion()" class="btn-secondary">Cancelar</button>
-          <button onclick="confirmarNuevaSesion()" class="btn-primary">Crear</button>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <script src="renderer.js"></script>
+  <script defer src="./renderer.js"></script>
 </body>
 </html>
