@@ -1,23 +1,19 @@
 // main.js
-require('dotenv').config(); // <-- CARGA .env ANTES DE CUALQUIER IMPORT
+require('dotenv').config({ quiet: true });
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const isProd = process.env.NODE_ENV === 'production';
 
-// Manejo de promesas no capturadas para evitar que el proceso muera sin logs claros
-process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason);
-});
-process.on('uncaughtException', (err) => {
-  console.error('[uncaughtException]', err);
-});
+process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r));
+process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));
 
-// Capa de datos y AI
 const {
   initDb,
   crearSesion,
   obtenerSesiones,
+  obtenerSesionPorId,
+  actualizarModeloSesion,
   eliminarSesionDB,
   obtenerHistorial,
   guardarMensajePar,
@@ -39,19 +35,14 @@ async function createWindow() {
       sandbox: true,
     },
   });
-
   await mainWindow.loadFile(path.join(__dirname, 'index.html'));
-
-  if (!isProd) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
+  if (!isProd) mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
 
 app.whenReady().then(async () => {
   try {
-    await initDb(); // abre una sola conexión Mongo y deja todo listo
+    await initDb();
     await createWindow();
-
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
@@ -61,23 +52,25 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-// ================== IPC seguro (Renderer -> Main) ==================
-
-// Sesiones
+// ===== IPC =====
 ipcMain.handle('sesiones:listar', async () => obtenerSesiones());
-ipcMain.handle('sesiones:crear', async (_ev, titulo) => crearSesion(titulo || 'Nueva conversación'));
+ipcMain.handle('sesiones:obtener', async (_ev, id) => obtenerSesionPorId(id));
+ipcMain.handle('sesiones:crear', async (_ev, payload) => {
+  const titulo = payload?.titulo || 'Nueva conversación';
+  const modelo = payload?.modelo;
+  return crearSesion(titulo, modelo);
+});
+ipcMain.handle('sesiones:updateModelo', async (_ev, { id, modelo }) => {
+  return actualizarModeloSesion(id, modelo);
+});
 ipcMain.handle('sesiones:eliminar', async (_ev, sesionId) => eliminarSesionDB(sesionId));
 
-// Historial
 ipcMain.handle('historial:obtener', async (_ev, sesionId) => obtenerHistorial(sesionId));
 
-// Chat -> DeepSeek + persistencia
-ipcMain.handle('chat:enviar', async (_ev, { sesionId, mensajes }) => {
-  const respuesta = await completarDeepseek(mensajes);
+ipcMain.handle('chat:enviar', async (_ev, { sesionId, mensajes, modelOverride }) => {
+  const respuesta = await completarDeepseek(mensajes, modelOverride);
   const ultimoUser = mensajes[mensajes.length - 1]?.content ?? '';
   await guardarMensajePar(sesionId, ultimoUser, respuesta);
   return respuesta;

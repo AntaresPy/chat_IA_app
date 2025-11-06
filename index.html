@@ -1,12 +1,9 @@
-<!-- index.html -->
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <title>Conversaciones</title>
-  <meta
-    http-equiv="Content-Security-Policy"
-    content="
+  <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src 'self';
       style-src 'self';
@@ -14,19 +11,15 @@
       connect-src 'self';
       object-src 'none';
       base-uri 'self';
-    "
-  />
+    " />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.index.css" />
 </head>
 <body>
   <div class="layout">
     <aside class="sidebar">
       <h2>Sesiones</h2>
-      <div class="crear-sesion">
-        <input id="tituloSesion" type="text" placeholder="Título de sesión" />
-        <button id="btnCrearSesion">Crear</button>
-      </div>
+      <button id="btnNueva" class="primary w-full">Nueva conversación</button>
       <ul id="listaSesiones" class="lista"></ul>
     </aside>
 
@@ -35,6 +28,32 @@
       <p>Elegí una sesión a la izquierda o creá una nueva.</p>
       <p class="hint">Doble click para abrir el chat. Botón 🗑️ para eliminar.</p>
     </main>
+  </div>
+
+  <!-- Modal nueva conversación -->
+  <div id="modalNueva" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal__backdrop" data-close="true"></div>
+    <div class="modal__dialog" role="document">
+      <div class="modal__header">
+        <h3 id="modalTitle">Crear nueva conversación</h3>
+        <button class="modal__close" id="btnCerrarModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal__body">
+        <label for="tituloSesion" class="label">Título</label>
+        <input id="tituloSesion" type="text" placeholder="Escribe un título… (opcional)" />
+
+        <label for="modeloSesion" class="label">Modelo</label>
+        <select id="modeloSesion">
+          <option value="deepseek-chat" selected>Estándar (deepseek-chat)</option>
+          <option value="deepseek-r1">Razonamiento (deepseek-r1)</option>
+        </select>
+        <p class="hint">El modelo se guardará en esta sesión y se usará en todas sus respuestas.</p>
+      </div>
+      <div class="modal__footer">
+        <button id="btnCancelar" class="ghost">Cancelar</button>
+        <button id="btnCrearSesion" class="primary">Crear</button>
+      </div>
+    </div>
   </div>
 
   <script defer src="./renderer.js"></script>
