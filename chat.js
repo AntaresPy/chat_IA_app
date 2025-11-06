@@ -63,6 +63,66 @@
     bubble.appendChild(btn);
   }
 
+  // === Formateo de bloques de código (```lang ... ``` o '''lang ... ''') ===
+  function escapeHtml(s = '') {
+    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function buildFormattedHtmlFromText(text = '') {
+    const fence = /(```|''')([\w-]+)?\n([\s\S]*?)\1/g; // mismo fence de apertura/cierre
+    let html = '';
+    let last = 0;
+    let m;
+
+    while ((m = fence.exec(text))) {
+      // texto normal previo
+      if (m.index > last) {
+        const chunk = text.slice(last, m.index);
+        html += `<p class="p">${escapeHtml(chunk).replace(/\n{2,}/g, '\n\n').replace(/\n/g,'<br>')}</p>`;
+      }
+      const lang = (m[2] || '').trim();
+      const code = m[3] || '';
+      html += `
+      <div class="code-block">
+        <div class="code-head">
+          <span class="lang">${escapeHtml(lang || 'code')}</span>
+          <button type="button" class="copy-code">Copiar</button>
+        </div>
+        <pre><code class="${escapeHtml(lang)}">${escapeHtml(code)}</code></pre>
+      </div>`;
+      last = fence.lastIndex;
+    }
+
+    // resto (si no hubo más fences)
+    if (last < text.length) {
+      const chunk = text.slice(last);
+      html += `<p class="p">${escapeHtml(chunk).replace(/\n{2,}/g, '\n\n').replace(/\n/g,'<br>')}</p>`;
+    }
+    return html;
+  }
+
+  function formatAssistantBubble(bubble) {
+    const raw = bubble.textContent || '';
+    const html = buildFormattedHtmlFromText(raw);
+    bubble.innerHTML = html;
+
+    // eventos para “Copiar” del bloque de código
+    bubble.querySelectorAll('.copy-code').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const pre = btn.closest('.code-block')?.querySelector('pre');
+        const text = pre ? pre.textContent : '';
+        try {
+          if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+          else { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+          const old = btn.textContent; btn.textContent = 'Copiado'; setTimeout(() => (btn.textContent = old), 1200);
+        } catch {
+          const old = btn.textContent; btn.textContent = 'Error'; setTimeout(() => (btn.textContent = old), 1200);
+        }
+      });
+    });
+  }
+
   function appendMsg(rol, contenido) {
     const wrap = document.createElement('div');
     wrap.className = `msg ${rol === 'assistant' ? 'assistant' : 'user'}`;
@@ -72,7 +132,9 @@
     wrap.appendChild(bubble);
     historial.appendChild(wrap);
     scrollAlFinal();
-    if (rol === 'assistant' && contenido) addCopyButton(bubble);
+    if (rol === 'assistant' && contenido) {
+      formatAssistantBubble(bubble); // solo code-blocks tendrán su propio “Copiar”
+    }
     return bubble;
   }
 
@@ -161,7 +223,7 @@
       typingNode.remove();
       const bubble = appendMsg('assistant', '');
       await typeWriter(bubble, respuesta, 15);
-      if (!bubble.querySelector('.copy-btn')) addCopyButton(bubble);
+      formatAssistantBubble(bubble); // sin botón global
 
     } catch (err) {
       typingNode.remove();

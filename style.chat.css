@@ -60,6 +60,15 @@ html, body {
 
 .topbar__spacer { flex: 1; }
 
+/* Barra de controles del chat: volver (izq) + spacer + (modelo/descarga) derecha */
+.help {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  display: flex;              /* <- clave para alinear */
+  align-items: center;
+  gap: 10px;
+}
+
 .model-select {
   display: inline-flex;
   align-items: center;
@@ -92,8 +101,8 @@ html, body {
   overflow: auto;
   display: flex;              /* <<< cambia a flex */
   flex-direction: column;     /* <<< apila verticalmente */
-  gap: 10px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   background: #0c0f19;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -108,17 +117,16 @@ html, body {
 .msg.user { justify-content: flex-end; }
 .msg.assistant { justify-content: flex-start; }
 
-/* La burbuja se dimensiona por su contenido */
 .bubble {
   position: relative;
-  display: inline-block;       /* <<< clave para que tome sólo su contenido */
+  display: inline-block;
   max-width: min(720px, 85%);
-  padding: 10px 12px;
+  padding: 8px 10px;           /* ↓ menos padding */
   border-radius: 12px;
   line-height: 1.4;
   white-space: pre-wrap;
   word-wrap: break-word;
-  flex: 0 0 auto;              /* <<< no crecer/encogerse */
+  flex: 0 0 auto;
 }
 
 /* (opcional) Typing más compacto */
@@ -231,3 +239,40 @@ button.ghost { background: transparent; border-color: var(--border); color: var(
 @media (max-width: 720px) {
   .topbar__title { max-width: 42vw; }
 }
+
+/* ===== Bloques de código en respuestas ===== */
+.p { margin: 6px 0; }
+
+.code-block {
+  margin: 6px 0;               /* ↓ menos margen vertical */
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0b1220;
+  overflow: hidden;
+}
+
+.code-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 4px 8px;  /* ↓ menos padding */
+  background: #0c1528; border-bottom: 1px solid #1f2533;
+  color: #b7c0d1; font-size: 12px;
+}
+
+.code-head .lang { opacity: .85; }
+
+.code-head .copy-code {
+  font-size: 12px; padding: 4px 8px;
+  border-radius: 6px; border: 1px solid #2a2f3a;
+  background: #0f1320; color: var(--text);
+  cursor: pointer;
+}
+.code-head .copy-code:hover { border-color: var(--accent); }
+
+.code-block pre {
+  margin: 0; padding: 8px 10px; /* ↓ menos padding */
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px; line-height: 1.45;
+  color: #e6e6e6;
+}
+
