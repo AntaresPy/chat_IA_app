@@ -18,18 +18,58 @@ function asObjectId(id) {
 }
 function serializeId(doc) {
   if (!doc) return doc;
-  return { ...doc, _id: String(doc._id) };
+  // spread bien escrito
+  const { _id, ...rest } = doc;
+  return { ...rest, _id: String(_id) };
 }
 
-async function initDb() {
-  if (db) return db;
-  client = new MongoClient(MONGO_URI, { maxPoolSize: 10 });
-  await client.connect();
-  db = client.db(DB_NAME);
+// crea colecciones/índices si no existen
+async function ensureSchema(db) {
+  const colls = await db.listCollections().toArray();
+  const names = new Set(colls.map(c => c.name));
+
+  if (!names.has('conversaciones')) await db.createCollection('conversaciones');
+  if (!names.has('mensajes')) await db.createCollection('mensajes');
 
   await db.collection('conversaciones').createIndex({ fecha_creacion: -1 });
   await db.collection('mensajes').createIndex({ sesionId: 1, timestamp: 1 });
-  return db;
+}
+
+async function initDb({ retries = 1, delayMs = 1000 } = {}) {
+  if (db) return db;
+
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      client = new MongoClient(MONGO_URI, {
+        maxPoolSize: 10,
+        connectTimeoutMS: 8000,
+        serverSelectionTimeoutMS: 8000,
+      });
+      await client.connect();
+      db = client.db(DB_NAME);
+      await ensureSchema(db);
+      return db;
+    } catch (e) {
+      lastErr = e;
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
+async function healthCheckDb(timeoutMs = 2000) {
+  if (!db) return false;
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    await db.command({ ping: 1 }, { signal: ctl.signal });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 // ===== Sesiones =====
@@ -42,7 +82,6 @@ async function crearSesion(titulo, modelo) {
   const doc = await db.collection('conversaciones').findOne({ _id: r.insertedId });
   return serializeId(doc);
 }
-
 async function obtenerSesiones() {
   const docs = await db.collection('conversaciones')
     .find({})
@@ -50,20 +89,17 @@ async function obtenerSesiones() {
     .toArray();
   return docs.map(serializeId);
 }
-
 async function obtenerSesionPorId(sesionId) {
   const _id = asObjectId(sesionId);
   const doc = await db.collection('conversaciones').findOne({ _id });
   return serializeId(doc);
 }
-
 async function actualizarModeloSesion(sesionId, modelo) {
   const _id = asObjectId(sesionId);
   await db.collection('conversaciones').updateOne({ _id }, { $set: { modelo } });
   const doc = await db.collection('conversaciones').findOne({ _id });
   return serializeId(doc);
 }
-
 async function eliminarSesionDB(sesionId) {
   const _id = asObjectId(sesionId);
   await db.collection('mensajes').deleteMany({ sesionId: _id });
@@ -78,9 +114,9 @@ async function obtenerHistorial(sesionId) {
     .find({ sesionId: _id })
     .sort({ timestamp: 1 })
     .toArray();
-  return items.map((m) => ({ ...m, sesionId: String(m.sesionId) }));
+  // spread bien escrito
+  return items.map(m => ({ ...m, sesionId: String(m.sesionId) }));
 }
-
 async function guardarMensajePar(sesionId, userTexto, assistantTexto) {
   const _id = asObjectId(sesionId);
   const t = Date.now();
@@ -92,6 +128,7 @@ async function guardarMensajePar(sesionId, userTexto, assistantTexto) {
 
 module.exports = {
   initDb,
+  healthCheckDb,
   crearSesion,
   obtenerSesiones,
   obtenerSesionPorId,

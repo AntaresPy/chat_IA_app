@@ -85,6 +85,17 @@ h1 {
   margin: 0;
 }
 
+.banner {
+  padding: 10px 14px;
+  border-left: 4px solid #f39c12;
+  background: #2b2b2b;
+  color: #ffdd99;
+  margin: 0;
+  font-size: 14px;
+}
+.banner.is-warn { border-color:#f39c12; }
+.banner.is-info { border-color:#3498db; color:#cfe8ff; }
+
 .center { text-align: center; }
 
 /* Botones */

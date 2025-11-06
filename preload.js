@@ -15,3 +15,9 @@ contextBridge.exposeInMainWorld('api', {
   // Chat
   enviarChat: (payload) => ipcRenderer.invoke('chat:enviar', payload),
 });
+
+// Reporte de errores desde el renderer
+contextBridge.exposeInMainWorld('telemetry', {
+  error: (payload) => ipcRenderer.send('log:rendererError', payload),
+  onBanner: (cb) => ipcRenderer.on('ui:banner', (_ev, data) => cb?.(data)),
+});

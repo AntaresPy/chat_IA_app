@@ -1,23 +1,69 @@
 // main.js
-require('dotenv').config({ quiet: true });
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
-const isProd = process.env.NODE_ENV === 'production';
+const fs = require('fs');
 
-process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r));
-process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));
+const isProd = app.isPackaged || process.env.NODE_ENV === 'production';
 
+// === Carga de .env robusta ===
+(() => {
+  try {
+    const dotenv = require('dotenv');
+    // 1) Dev: .env en cwd
+    dotenv.config({ override: false });
+    // 2) Prod: .env empaquetado en resources
+    if (isProd) {
+      const maybePackedEnv = path.join(process.resourcesPath || '', '.env');
+      if (fs.existsSync(maybePackedEnv)) {
+        dotenv.config({ path: maybePackedEnv, override: true });
+      }
+    }
+  } catch {}
+})();
+
+// === Paths y logging rotativo ===
+function getLogsDir() {
+  try { return app.getPath('logs'); } catch { return path.join(process.cwd(), 'logs'); }
+}
+function ensureDir(p) { try { fs.mkdirSync(p, { recursive: true }); } catch {} }
+function rotateIfNeeded(file, maxBytes = 5 * 1024 * 1024, keep = 5) {
+  try {
+    if (fs.existsSync(file) && fs.statSync(file).size > maxBytes) {
+      for (let i = keep - 1; i >= 1; i--) {
+        const older = `${file}.${i}`;
+        const newer = `${file}.${i + 1}`;
+        if (fs.existsSync(older)) fs.renameSync(older, newer);
+      }
+      fs.renameSync(file, `${file}.1`);
+    }
+  } catch {}
+}
+function logFilePath() {
+  const dir = getLogsDir();
+  ensureDir(dir);
+  return path.join(dir, 'app.log');
+}
+function log(...args) {
+  try {
+    const line = new Date().toISOString() + ' ' + args.map(a => (a && a.stack) ? a.stack : String(a)).join(' ') + '\n';
+    const f = logFilePath();
+    rotateIfNeeded(f);
+    fs.appendFileSync(f, line);
+  } catch {}
+}
+
+// Errores globales (proceso principal)
+process.on('unhandledRejection', (r) => { console.error('[unhandledRejection]', r); log('[unhandledRejection]', r); });
+process.on('uncaughtException', (e) => { console.error('[uncaughtException]', e); log('[uncaughtException]', e); });
+
+// === DB/AI ===
 const {
   initDb,
-  crearSesion,
-  obtenerSesiones,
-  obtenerSesionPorId,
-  actualizarModeloSesion,
-  eliminarSesionDB,
-  obtenerHistorial,
-  guardarMensajePar,
+  crearSesion, obtenerSesiones, obtenerSesionPorId,
+  actualizarModeloSesion, eliminarSesionDB,
+  obtenerHistorial, guardarMensajePar,
+  healthCheckDb
 } = require('./srv/db');
-
 const { completarDeepseek } = require('./srv/ai');
 
 let mainWindow;
@@ -27,80 +73,69 @@ async function createWindow() {
     width: 1100,
     height: 750,
     show: true,
-
-    // ✅ opciones de la ventana (no van en webPreferences)
     autoHideMenuBar: true,
     titleBarStyle: process.platform === 'win32' ? 'hidden' : 'hiddenInset',
     titleBarOverlay: process.platform === 'win32'
       ? { color: '#0f1115', symbolColor: '#e6e6e6', height: 48 }
       : true,
-
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      devTools: false   // 🔒 fuerza deshabilitar DevTools en renderer
+      devTools: !isProd, // permite devtools en DEV
     },
   });
 
   await mainWindow.loadFile(path.join(__dirname, 'index.html'));
-  //if (!isProd) mainWindow.webContents.openDevTools({ mode: 'detach' });
-  // En desarrollo, podés optar por habilitarlas temporalmente:
-  if (!isProd) mainWindow.webContents.setDevToolsWebContents(null);
 }
 
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,AutofillExtendedPaymentsEnabled');
 
+// Arranque con DB tolerante a fallos
 app.whenReady().then(async () => {
+  let dbOk = false;
   try {
-    await initDb();
-    await createWindow();
-    Menu.setApplicationMenu(null);
+    await initDb({ retries: 5, delayMs: 1500 }); // reintentos
+    dbOk = await healthCheckDb(2000);
+  } catch (e) {
+    log('[DB:init]', e);
+  }
 
-    // ⛔ Bloquear atajos de DevTools en todas las ventanas
+  await createWindow();
+  Menu.setApplicationMenu(null);
+
+  // Aviso visual si DB no está OK (sin bloquear la app)
+  if (!dbOk && mainWindow) {
+    const msg = 'No se pudo conectar a la base de datos. El sistema seguirá funcionando de forma limitada.';
+    log('[DB:warning]', msg);
+    // mostrar un diálogo y además enviar un banner al renderer
+    dialog.showMessageBox(mainWindow, { type: 'warning', title: 'BD no disponible', message: msg });
+    mainWindow.webContents.send('ui:banner', { type: 'warn', text: msg });
+  }
+
+  // bloquear atajos devtools en producción
+  if (isProd) {
     app.on('browser-window-created', (_e, win) => {
       win.webContents.on('before-input-event', (event, input) => {
-        const isDevtoolsCombo =
-          input.type === 'keyDown' && (
-            input.key === 'F12' ||
-            (input.control && input.shift && (input.key === 'I' || input.key === 'i'))
-          );
-        if (isDevtoolsCombo) event.preventDefault();
+        const devtoolsCombo = input.type === 'keyDown' && (
+          input.key === 'F12' || (input.control && input.shift && (input.key === 'I' || input.key === 'i'))
+        );
+        if (devtoolsCombo) event.preventDefault();
       });
     });
-  } catch (err) {
-    console.error('[startup error]', err);
-    app.quit();
   }
+
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-
-const fs = require('fs');
-function logFilePath() {
-  try { return require('electron').app.getPath('userData') + '/app.log'; } catch { return 'app.log'; }
-}
-function log(...args) {
-  try { fs.appendFileSync(logFilePath(), new Date().toISOString() + ' ' + args.join(' ') + '\n'); } catch {}
-}
-
-app.whenReady().then(async () => {
-  try {
-    await initDb();            // intenta conectar a Mongo
-  } catch (e) {
-    console.error('[DB]', e);
-    log('[DB]', e && (e.stack || e));
-    // 👉 no hacemos app.quit(); dejamos que la UI abra igual
-  }
-  await createWindow();        // siempre intenta abrir UI
-  Menu.setApplicationMenu(null);
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
-
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-// ===== IPC =====
+// IPC: logs desde renderer
+ipcMain.on('log:rendererError', (_ev, payload) => {
+  log('[rendererError]', payload);
+});
+
+// IPC: API
 ipcMain.handle('sesiones:listar', async () => obtenerSesiones());
 ipcMain.handle('sesiones:obtener', async (_ev, id) => obtenerSesionPorId(id));
 ipcMain.handle('sesiones:crear', async (_ev, payload) => {
@@ -108,13 +143,9 @@ ipcMain.handle('sesiones:crear', async (_ev, payload) => {
   const modelo = payload?.modelo;
   return crearSesion(titulo, modelo);
 });
-ipcMain.handle('sesiones:updateModelo', async (_ev, { id, modelo }) => {
-  return actualizarModeloSesion(id, modelo);
-});
+ipcMain.handle('sesiones:updateModelo', async (_ev, { id, modelo }) => actualizarModeloSesion(id, modelo));
 ipcMain.handle('sesiones:eliminar', async (_ev, sesionId) => eliminarSesionDB(sesionId));
-
 ipcMain.handle('historial:obtener', async (_ev, sesionId) => obtenerHistorial(sesionId));
-
 ipcMain.handle('chat:enviar', async (_ev, { sesionId, mensajes, modelOverride }) => {
   const respuesta = await completarDeepseek(mensajes, modelOverride);
   const ultimoUser = mensajes[mensajes.length - 1]?.content ?? '';
