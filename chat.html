@@ -22,25 +22,24 @@
   <div class="layout">
     <!-- Barra de navegación superior -->
     <header class="topbar">
-      <button id="btnVolver" class="nav-btn">←</button>
-
       <h2 id="tituloSesion" class="topbar__title" title="Título de la conversación">Chat</h2>
-
-      <div class="topbar__spacer"></div>
-
-      <label class="model-select" title="Modelo de IA a usar en esta sesión">
-        <span>Modelo</span>
-        <select id="selectModelo">
-          <option value="deepseek-chat">Estándar</option>
-          <option value="deepseek-r1">R1 (razonamiento)</option>
-        </select>
-      </label>
-
-      <button id="btnDescargar" class="nav-btn">Descargar</button>
     </header>
 
     <!-- Columna scroleable -->
     <main class="contenido">
+      <div class="help" id="help">
+        <button id="btnVolver" class="nav-btn">←</button>
+        <div class="topbar__spacer"></div>
+        <label class="model-select" title="Modelo de IA a usar en esta sesión">
+          <span>Modelo</span>
+          <select id="selectModelo">
+            <option value="deepseek-chat">Estándar</option>
+            <option value="deepseek-r1">R1 (razonamiento)</option>
+          </select>
+        </label>
+        <button id="btnDescargar" class="nav-btn">Descargar</button>
+      </div>
+
       <div id="historial" class="historial"></div>
 
       <div class="entrada">

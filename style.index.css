@@ -8,6 +8,7 @@
   --accent: #6ea8fe;
   --danger: #ff6b6b;
   --border: #2a2f3a;
+  --titlebar-height: 48px; /* debe coincidir con main.js titleBarOverlay.height */
 }
 
 * { box-sizing: border-box; }
@@ -18,34 +19,73 @@ html, body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  overflow: hidden; /* sidebar fijo, scrollea solo contenido */
+  overflow: hidden; /* solo el contenedor hace scroll si hace falta */
+  padding-top: var(--titlebar-height);
 }
 
-/* Layout */
+.menubar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--titlebar-height);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: #121522;
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;       /* <- arrastrable */
+}
+.menubar button, .menubar a, .menubar select, .menubar input {
+  -webkit-app-region: no-drag;    /* <- clickeables */
+}
+
+
+.menubar__title {
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+
+/* Vista de 2 filas: menubar (auto) + contenido (1fr) */
 .layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  height: 100vh;
+  grid-template-rows: 1fr;
+  height: calc(100vh - 56px); /* 56px ≈ alto de la menubar */
+  padding: 16px;
+  place-items: center;
 }
 
-.sidebar {
+.container {
+  width: min(980px, 96vw);      /* mantenemos ancho */
+  height: 100%;                 /* ocupa todo el alto disponible */
   background: var(--panel);
-  border-right: 1px solid var(--border);
-  padding: 16px;
-  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  overflow: auto;               /* scrolleable si hay muchas tarjetas */
+  box-shadow: 0 10px 40px rgba(0,0,0,.35);
 }
 
-.contenido {
-  overflow: auto;
-  padding: 16px;
+.header {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-h1, h2 { margin: 0 0 12px 0; }
+.header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-.w-full { width: 100%; }
+h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.center { text-align: center; }
 
 /* Botones */
 button {
@@ -57,58 +97,100 @@ button {
   cursor: pointer;
 }
 button:hover { border-color: var(--accent); }
-
 button.primary {
   background: #14203b;
   border-color: #243355;
 }
 button.primary:hover { border-color: var(--accent); }
-
 button.ghost {
   background: transparent;
   border-color: var(--border);
   color: var(--text);
 }
 
-/* Lista sesiones */
-.lista { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
-.item {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; padding: 10px 12px; background: #0f1320; border-radius: 10px;
+/* ===== Tarjetas de sesiones ===== */
+.cards {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
 }
-.item span { user-select: none; cursor: default; }
-.item .danger { border-color: transparent; background: #25171a; }
-.item .danger:hover { border-color: #3f2024; background: #301b1f; color: #ffb3b3; }
+
+.item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 8px;
+  padding: 12px;
+  background: #0f1320;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  /* Hover lift */
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  will-change: transform, box-shadow;
+}
+.item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  border-color: #33405a;
+}
+
+.item_title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item_meta {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid #2a2f3a;
+  background: #101424;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.item_actions {
+  display: flex;
+  gap: 6px;
+}
+
+.item .danger {
+  border-color: transparent;
+  background: #25171a;
+}
+.item .danger:hover {
+  border-color: #3f2024;
+  background: #301b1f;
+  color: #ffb3b3;
+}
 
 .hint { color: var(--muted); }
 
 /* ===== Modal ===== */
-.modal {
-  position: fixed;
-  inset: 0;
-  display: none; /* se muestra con .is-open */
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
+.modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 9999; }
 .modal.is-open { display: flex; }
-
-.modal__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,.45);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-/* Garantiza orden de apilamiento correcto e interactividad */
-.modal       { z-index: 9999; }
-.modal__backdrop { z-index: 1; }
-.modal__dialog   { z-index: 2; pointer-events: auto; }
-
-
+.modal__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); z-index: 1; }
 .modal__dialog {
-  position: relative;
+  position: relative; z-index: 2;
   width: min(520px, 92vw);
   background: #0f1320;
   border: 1px solid var(--border);
@@ -119,33 +201,13 @@ button.ghost {
   max-height: 80vh;
 }
 
-.modal__header,
-.modal__footer {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-/* >>> Ajuste clave: header relativo para posicionar el botón cerrar */
-.modal__header {
-  position: relative;
-  padding-right: 44px; /* espacio para el botón ✕ */
-}
-
-.modal__footer {
-  border-top: 1px solid var(--border);
-  border-bottom: none;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
+.modal__header, .modal__footer { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.modal__header { position: relative; padding-right: 44px; }
+.modal__footer { border-top: 1px solid var(--border); border-bottom: none; display: flex; gap: 10px; justify-content: flex-end; }
 .modal__body { padding: 16px; display: grid; gap: 10px; }
 
-/* >>> Botón cerrar anclado arriba a la derecha */
 .modal__close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+  position: absolute; top: 10px; right: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #151a2a;
@@ -156,31 +218,8 @@ button.ghost {
   height: 32px;
 }
 
-/* Campos del modal */
 .label { color: var(--muted); font-size: 14px; }
-
-.modal input[type="text"] {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: #101424;
-  color: var(--text);
-}
-
-/* Responsive */
-@media (max-width: 860px) {
-  .layout { grid-template-columns: 220px 1fr; }
-}
-@media (max-width: 640px) {
-  .layout { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
-}
-
-.modal__body { padding: 16px; display: grid; gap: 10px; }
-
-.modal input[type="text"],
-.modal select {
+.modal input[type="text"], .modal select {
   width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
@@ -189,7 +228,9 @@ button.ghost {
   color: var(--text);
   appearance: none;
 }
+.modal input, .modal select, .modal textarea, .modal button { pointer-events: auto; }
 
-.modal input, .modal select, .modal textarea, .modal button {
-  pointer-events: auto;
+/* Responsive tweaks */
+@media (max-width: 560px) {
+  .cards { grid-template-columns: 1fr; }
 }

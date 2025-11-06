@@ -1,7 +1,6 @@
 // main.js
 require('dotenv').config({ quiet: true });
-
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -28,6 +27,14 @@ async function createWindow() {
     width: 1100,
     height: 750,
     show: true,
+
+    // ✅ opciones de la ventana (no van en webPreferences)
+    autoHideMenuBar: true,
+    titleBarStyle: process.platform === 'win32' ? 'hidden' : 'hiddenInset',
+    titleBarOverlay: process.platform === 'win32'
+      ? { color: '#0f1115', symbolColor: '#e6e6e6', height: 48 }
+      : true,
+
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -35,14 +42,19 @@ async function createWindow() {
       sandbox: true,
     },
   });
+
   await mainWindow.loadFile(path.join(__dirname, 'index.html'));
   if (!isProd) mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
+
+app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,AutofillExtendedPaymentsEnabled');
 
 app.whenReady().then(async () => {
   try {
     await initDb();
     await createWindow();
+    Menu.setApplicationMenu(null);
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });

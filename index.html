@@ -16,17 +16,21 @@
   <link rel="stylesheet" href="./style.index.css" />
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar">
-      <h2>Sesiones</h2>
-      <button id="btnNueva" class="primary w-full">Nueva conversación</button>
-      <ul id="listaSesiones" class="lista"></ul>
-    </aside>
+  <!-- Menubar superior -->
+  <nav class="menubar" role="navigation" aria-label="Barra de menú">
+    <div class="menubar__title">DeepSeek Chat</div>
+  </nav>
 
-    <main class="contenido">
-      <h1>DeepSeek Chat (Electron)</h1>
-      <p>Elegí una sesión a la izquierda o creá una nueva.</p>
-      <p class="hint">Doble click para abrir el chat. Botón 🗑️ para eliminar.</p>
+  <div class="layout">
+    <main class="container" role="main" aria-label="Listado de conversaciones">
+      <header class="header">
+        <h1>Conversaciones</h1>
+        <div class="header__actions">
+          <button id="btnNueva" class="primary">Nueva conversación</button>
+        </div>
+      </header>
+
+      <ul id="listaSesiones" class="cards" aria-live="polite"></ul>
     </main>
   </div>
 
@@ -40,7 +44,7 @@
       </div>
       <div class="modal__body">
         <label for="tituloSesion" class="label">Título</label>
-        <input id="tituloSesion" type="text" placeholder="Escribe un título… (opcional)" />
+        <input id="tituloSesion" type="text" placeholder="Escribe un título… (opcional)" autofocus />
 
         <label for="modeloSesion" class="label">Modelo</label>
         <select id="modeloSesion">
