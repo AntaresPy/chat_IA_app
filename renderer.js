@@ -13,6 +13,23 @@
 
   let lastFocused = null;
 
+  // En la IIFE del renderer (al comienzo)
+  window.addEventListener('error', (e) => {
+    try { window.telemetry?.error({ type: 'error', message: e.message, stack: e.error?.stack }); } catch {}
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    try { window.telemetry?.error({ type: 'unhandledrejection', reason: String(e.reason) }); } catch {}
+  });
+
+  // Muestra banners enviados desde main
+  window.telemetry?.onBanner?.(({ type, text }) => {
+    const bar = document.getElementById('errorBanner');
+    if (!bar) return;
+    bar.textContent = text || '';
+    bar.className = 'banner ' + (type === 'warn' ? 'is-warn' : 'is-info');
+    bar.style.display = 'block';
+  });
+
   // Evita que atajos globales o el menubar “roben” el teclado cuando estás tipeando en el modal
   [inputTitulo, selectModelo].forEach(el => {
     if (!el) return;
@@ -61,8 +78,9 @@
     btnDel.title = 'Eliminar conversación';
 
     // UN SOLO CLICK en toda la tarjeta (excepto en el área de acciones)
-    li.addEventListener('click', (e) => {
-      if (e.target.closest('.item_actions')) return; // no abrir si clickean 🗑️
+  li.addEventListener('click', (e) => {
+    const tgt = e.target;
+    if (tgt instanceof Element && tgt.closest('.item_actions')) return;
       const id = encodeURIComponent(String(s._id));
       const t  = encodeURIComponent(String(s.titulo || ''));
       const m  = encodeURIComponent(String(s.modelo || ''));
@@ -102,11 +120,22 @@
   }
 
   async function cargarSesiones() {
-    const sesiones = await window.api.listarSesiones();
-    lista.innerHTML = '';
-    // Render en paralelo para no bloquear UI
-    const items = await Promise.all(sesiones.map(renderItem));
-    for (const it of items) lista.appendChild(it);
+    try {
+      const sesiones = await window.api.listarSesiones();
+      lista.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      const items = await Promise.all(sesiones.map(renderItem));
+      for (const it of items) frag.appendChild(it);
+      lista.appendChild(frag);
+    } catch (err) {
+      window.telemetry?.error({ type: 'ipc', op: 'listarSesiones', message: String(err) });
+      const bar = document.getElementById('errorBanner');
+      if (bar) {
+        bar.textContent = 'No se pudo cargar la lista de conversaciones. Verificá la conexión con la BD.';
+        bar.className = 'banner is-warn';
+        bar.style.display = 'block';
+      }
+    }
   }
 
   // ===== Modal logic =====
@@ -134,15 +163,15 @@
   }
 
   // Clic en fondo cierra
-  modal.addEventListener('click', (e) => {
+  modal && modal.addEventListener('click', (e) => {
     const isBackdrop = e.target instanceof HTMLElement && e.target.dataset.close === 'true';
     if (isBackdrop) closeModal();
   });
 
-  // Botones del modal
-  btnNueva.addEventListener('click', openModal);
-  btnCerrarModal.addEventListener('click', closeModal);
-  btnCancelar.addEventListener('click', closeModal);
+  // Botones del modal (con guardas)
+  btnNueva && btnNueva.addEventListener('click', openModal);
+  btnCerrarModal && btnCerrarModal.addEventListener('click', closeModal);
+  btnCancelar && btnCancelar.addEventListener('click', closeModal);
 
   modal.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

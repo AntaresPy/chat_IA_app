@@ -8,13 +8,46 @@
   "license": "MIT",
   "scripts": {
     "start": "cross-env NODE_ENV=development electron .",
-    "prod": "cross-env NODE_ENV=production electron ."
+    "prod": "cross-env NODE_ENV=production electron .",
+    "pack:win": "electron-builder --win --dir",
+    "installer": "iscc installer.iss /DAppVersion=%npm_package_version% /DSourceDir=dist\\win-unpacked /DAppName=\"DeepSeek Chat\" /DAppExe=\"DeepSeek Chat.exe\""
   },
   "dependencies": {
     "axios": "^1.7.7",
     "cross-env": "^7.0.3",
     "dotenv": "^17.2.3",
-    "electron": "^32.2.0",
     "mongodb": "^6.8.0"
+  },
+  "devDependencies": {
+    "electron": "^32.3.3",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.starsoft.deepseekchat",
+    "productName": "DeepSeek Chat",
+    "extraResources": [
+      ".env"
+    ],
+    "directories": {
+      "buildResources": "resources"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "chat.html",
+      "renderer.js",
+      "chat.js",
+      "style.*.css",
+      "srv/**",
+      "resources/**",
+      "package.json"
+    ],
+    "win": {
+      "icon": "resources/icono.ico",
+      "target": [
+        "dir"
+      ]
+    }
   }
 }
