@@ -4,7 +4,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   // Sesiones
   listarSesiones: () => ipcRenderer.invoke('sesiones:listar'),
-  crearSesion: (titulo) => ipcRenderer.invoke('sesiones:crear', titulo),
+  crearSesion: (payload) => ipcRenderer.invoke('sesiones:crear', payload),
+  obtenerSesion: (id) => ipcRenderer.invoke('sesiones:obtener', id),
+  actualizarModelo: (id, modelo) => ipcRenderer.invoke('sesiones:updateModelo', { id, modelo }),
   eliminarSesion: (id) => ipcRenderer.invoke('sesiones:eliminar', id),
 
   // Historial

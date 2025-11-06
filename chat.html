@@ -1,4 +1,3 @@
-<!-- chat.html -->
 <!doctype html>
 <html lang="es">
 <head>
@@ -17,15 +16,30 @@
     "
   />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.chat.css" />
 </head>
 <body>
   <div class="layout">
-    <aside class="sidebar">
-      <button id="btnVolver">← Sesiones</button>
-      <h2 id="tituloSesion">Chat</h2>
-    </aside>
+    <!-- Barra de navegación superior -->
+    <header class="topbar">
+      <button id="btnVolver" class="nav-btn">←</button>
 
+      <h2 id="tituloSesion" class="topbar__title" title="Título de la conversación">Chat</h2>
+
+      <div class="topbar__spacer"></div>
+
+      <label class="model-select" title="Modelo de IA a usar en esta sesión">
+        <span>Modelo</span>
+        <select id="selectModelo">
+          <option value="deepseek-chat">Estándar</option>
+          <option value="deepseek-r1">R1 (razonamiento)</option>
+        </select>
+      </label>
+
+      <button id="btnDescargar" class="nav-btn">Descargar</button>
+    </header>
+
+    <!-- Columna scroleable -->
     <main class="contenido">
       <div id="historial" class="historial"></div>
 
@@ -34,6 +48,39 @@
         <button id="btnEnviar">Enviar</button>
       </div>
     </main>
+  </div>
+
+  <!-- Modal de descarga -->
+  <div id="modalDescarga" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal__backdrop" data-close="true"></div>
+    <div class="modal__dialog" role="document">
+      <div class="modal__header">
+        <h3 id="modalTitle">Exportar conversación</h3>
+        <button class="modal__close" id="btnCerrarModalDesc" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal__body">
+        <fieldset class="field">
+          <legend>Formato</legend>
+          <label class="row">
+            <input type="radio" name="fmt" value="txt" checked />
+            <span>Texto (.txt)</span>
+          </label>
+          <label class="row">
+            <input type="radio" name="fmt" value="json" />
+            <span>JSON (.json)</span>
+          </label>
+        </fieldset>
+
+        <label class="row">
+          <input type="checkbox" id="chkMeta" checked />
+          <span>Incluir metadatos (título, modelo, fecha)</span>
+        </label>
+      </div>
+      <div class="modal__footer">
+        <button id="btnCancelarDesc" class="ghost">Cancelar</button>
+        <button id="btnConfirmarDesc" class="primary">Descargar</button>
+      </div>
+    </div>
   </div>
 
   <script defer src="./chat.js"></script>

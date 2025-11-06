@@ -1,0 +1,195 @@
+/* style.index.css */
+:root {
+  color-scheme: light dark;
+  --bg: #0f1115;
+  --panel: #171923;
+  --text: #e6e6e6;
+  --muted: #a0a0a0;
+  --accent: #6ea8fe;
+  --danger: #ff6b6b;
+  --border: #2a2f3a;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden; /* sidebar fijo, scrollea solo contenido */
+}
+
+/* Layout */
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.contenido {
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+h1, h2 { margin: 0 0 12px 0; }
+
+.w-full { width: 100%; }
+
+/* Botones */
+button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #121522;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+
+button.primary {
+  background: #14203b;
+  border-color: #243355;
+}
+button.primary:hover { border-color: var(--accent); }
+
+button.ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* Lista sesiones */
+.lista { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px; background: #0f1320; border-radius: 10px;
+}
+.item span { user-select: none; cursor: default; }
+.item .danger { border-color: transparent; background: #25171a; }
+.item .danger:hover { border-color: #3f2024; background: #301b1f; color: #ffb3b3; }
+
+.hint { color: var(--muted); }
+
+/* ===== Modal ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none; /* se muestra con .is-open */
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal.is-open { display: flex; }
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* Garantiza orden de apilamiento correcto e interactividad */
+.modal       { z-index: 9999; }
+.modal__backdrop { z-index: 1; }
+.modal__dialog   { z-index: 2; pointer-events: auto; }
+
+
+.modal__dialog {
+  position: relative;
+  width: min(520px, 92vw);
+  background: #0f1320;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+.modal__header,
+.modal__footer {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* >>> Ajuste clave: header relativo para posicionar el botón cerrar */
+.modal__header {
+  position: relative;
+  padding-right: 44px; /* espacio para el botón ✕ */
+}
+
+.modal__footer {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modal__body { padding: 16px; display: grid; gap: 10px; }
+
+/* >>> Botón cerrar anclado arriba a la derecha */
+.modal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #151a2a;
+  color: var(--text);
+  padding: 4px 8px;
+  line-height: 1;
+  min-width: 34px;
+  height: 32px;
+}
+
+/* Campos del modal */
+.label { color: var(--muted); font-size: 14px; }
+
+.modal input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #101424;
+  color: var(--text);
+}
+
+/* Responsive */
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 220px 1fr; }
+}
+@media (max-width: 640px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+}
+
+.modal__body { padding: 16px; display: grid; gap: 10px; }
+
+.modal input[type="text"],
+.modal select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #101424;
+  color: var(--text);
+  appearance: none;
+}
+
+.modal input, .modal select, .modal textarea, .modal button {
+  pointer-events: auto;
+}
