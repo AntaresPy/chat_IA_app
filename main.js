@@ -40,11 +40,14 @@ async function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      devTools: false   // 🔒 fuerza deshabilitar DevTools en renderer
     },
   });
 
   await mainWindow.loadFile(path.join(__dirname, 'index.html'));
-  if (!isProd) mainWindow.webContents.openDevTools({ mode: 'detach' });
+  //if (!isProd) mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // En desarrollo, podés optar por habilitarlas temporalmente:
+  if (!isProd) mainWindow.webContents.setDevToolsWebContents(null);
 }
 
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,AutofillExtendedPaymentsEnabled');
@@ -55,13 +58,44 @@ app.whenReady().then(async () => {
     await createWindow();
     Menu.setApplicationMenu(null);
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    // ⛔ Bloquear atajos de DevTools en todas las ventanas
+    app.on('browser-window-created', (_e, win) => {
+      win.webContents.on('before-input-event', (event, input) => {
+        const isDevtoolsCombo =
+          input.type === 'keyDown' && (
+            input.key === 'F12' ||
+            (input.control && input.shift && (input.key === 'I' || input.key === 'i'))
+          );
+        if (isDevtoolsCombo) event.preventDefault();
+      });
     });
   } catch (err) {
     console.error('[startup error]', err);
     app.quit();
   }
+});
+
+const fs = require('fs');
+function logFilePath() {
+  try { return require('electron').app.getPath('userData') + '/app.log'; } catch { return 'app.log'; }
+}
+function log(...args) {
+  try { fs.appendFileSync(logFilePath(), new Date().toISOString() + ' ' + args.join(' ') + '\n'); } catch {}
+}
+
+app.whenReady().then(async () => {
+  try {
+    await initDb();            // intenta conectar a Mongo
+  } catch (e) {
+    console.error('[DB]', e);
+    log('[DB]', e && (e.stack || e));
+    // 👉 no hacemos app.quit(); dejamos que la UI abra igual
+  }
+  await createWindow();        // siempre intenta abrir UI
+  Menu.setApplicationMenu(null);
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
