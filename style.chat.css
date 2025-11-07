@@ -276,3 +276,21 @@ button.ghost { background: transparent; border-color: var(--border); color: var(
   color: #e6e6e6;
 }
 
+/* ===== Banner de errores/avisos ===== */
+.banner {
+  display: none;               /* oculto por defecto */
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  border-left: 4px solid #f39c12;
+  background: #2b2f3c;
+  color: #ffe4b3;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.banner.is-visible { display: block; }   /* SOLO visible cuando hay algo que mostrar */
+
+.banner.is-warn { border-color: #f39c12; }
+.banner.is-err  { border-color: #e74c3c; color: #ffd6d6; background:#3a2b2b; }
+.banner.is-info { border-color: #3498db; color: #cfe8ff; background:#233142; }
+

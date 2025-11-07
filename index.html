@@ -4,24 +4,23 @@
   <meta charset="utf-8" />
   <title>Conversaciones</title>
   <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
-      script-src 'self';
-      style-src 'self';
-      img-src 'self' data:;
-      connect-src 'self';
-      object-src 'none';
-      base-uri 'self';
-    " />
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    connect-src 'self';
+    object-src 'none';
+    base-uri 'self';
+  ">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./style.index.css" />
 </head>
 <body>
-  <!-- Menubar superior -->
   <nav class="menubar" role="navigation" aria-label="Barra de menú">
     <div class="menubar__title">DeepSeek Chat</div>
   </nav>
 
-  <div id="errorBanner" class="banner" style="display:none" role="status" aria-live="polite"></div>
+  <div id="errorBanner" class="banner" role="status" aria-live="polite"></div>
 
   <div class="layout">
     <main class="container" role="main" aria-label="Listado de conversaciones">
@@ -62,6 +61,8 @@
     </div>
   </div>
 
+  <!-- SweetAlert2 local -->
+  <script defer src="./vendor/sweetalert2.all.min.js"></script>
   <script defer src="./renderer.js"></script>
 </body>
 </html>

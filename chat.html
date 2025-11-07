@@ -3,29 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <title>Chat</title>
-  <meta
-    http-equiv="Content-Security-Policy"
-    content="
-      default-src 'self';
-      script-src 'self';
-      style-src 'self';
-      img-src 'self' data:;
-      connect-src 'self';
-      object-src 'none';
-      base-uri 'self';
-    "
-  />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    connect-src 'self';
+    object-src 'none';
+    base-uri 'self';
+  ">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./style.chat.css" />
 </head>
 <body>
   <div class="layout">
-    <!-- Barra de navegación superior -->
     <header class="topbar">
       <h2 id="tituloSesion" class="topbar__title" title="Título de la conversación">Chat</h2>
     </header>
 
-    <!-- Columna scroleable -->
     <main class="contenido">
       <div class="help" id="help">
         <button id="btnVolver" class="nav-btn">←</button>
@@ -34,11 +29,13 @@
           <span>Modelo</span>
           <select id="selectModelo">
             <option value="deepseek-chat">Estándar</option>
-            <option value="deepseek-r1">R1 (razonamiento)</option>
+            <option value="deepseek-reasoner">R1 (razonamiento)</option>
           </select>
         </label>
         <button id="btnDescargar" class="nav-btn">Descargar</button>
       </div>
+
+      <div id="errorBanner" class="banner" role="status" aria-live="polite"></div>
 
       <div id="historial" class="historial"></div>
 
@@ -82,6 +79,8 @@
     </div>
   </div>
 
+  <!-- SweetAlert2 local -->
+  <script defer src="./vendor/sweetalert2.all.min.js"></script>
   <script defer src="./chat.js"></script>
 </body>
 </html>

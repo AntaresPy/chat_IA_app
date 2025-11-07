@@ -3,16 +3,14 @@ const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const isProd = app.isPackaged || process.env.NODE_ENV === 'production';
-
-// === Carga de .env robusta ===
+// === Carga de .env robusta (antes de calcular isProd) ===
 (() => {
   try {
     const dotenv = require('dotenv');
-    // 1) Dev: .env en cwd
+    // Dev: .env en cwd
     dotenv.config({ override: false });
-    // 2) Prod: .env empaquetado en resources
-    if (isProd) {
+    // Prod: .env empaquetado en resources
+    if (app.isPackaged) {
       const maybePackedEnv = path.join(process.resourcesPath || '', '.env');
       if (fs.existsSync(maybePackedEnv)) {
         dotenv.config({ path: maybePackedEnv, override: true });
@@ -21,7 +19,10 @@ const isProd = app.isPackaged || process.env.NODE_ENV === 'production';
   } catch {}
 })();
 
-// === Paths y logging rotativo ===
+// Ahora sí: DEV/PROD
+const isProd = app.isPackaged || process.env.NODE_ENV === 'production';
+
+// === Logging rotativo ===
 function getLogsDir() {
   try { return app.getPath('logs'); } catch { return path.join(process.cwd(), 'logs'); }
 }
@@ -83,11 +84,16 @@ async function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      devTools: !isProd, // permite devtools en DEV
+      devTools: !isProd, // habilita DevTools solo en DEV
     },
   });
 
   await mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+  // Abre DevTools automáticamente en DEV
+  if (!isProd) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 }
 
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,AutofillExtendedPaymentsEnabled');
@@ -96,7 +102,7 @@ app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Au
 app.whenReady().then(async () => {
   let dbOk = false;
   try {
-    await initDb({ retries: 5, delayMs: 1500 }); // reintentos
+    await initDb({ retries: 5, delayMs: 1500 });
     dbOk = await healthCheckDb(2000);
   } catch (e) {
     log('[DB:init]', e);
@@ -105,16 +111,14 @@ app.whenReady().then(async () => {
   await createWindow();
   Menu.setApplicationMenu(null);
 
-  // Aviso visual si DB no está OK (sin bloquear la app)
   if (!dbOk && mainWindow) {
     const msg = 'No se pudo conectar a la base de datos. El sistema seguirá funcionando de forma limitada.';
     log('[DB:warning]', msg);
-    // mostrar un diálogo y además enviar un banner al renderer
     dialog.showMessageBox(mainWindow, { type: 'warning', title: 'BD no disponible', message: msg });
     mainWindow.webContents.send('ui:banner', { type: 'warn', text: msg });
   }
 
-  // bloquear atajos devtools en producción
+  // Bloqueo de atajos DevTools solo en producción
   if (isProd) {
     app.on('browser-window-created', (_e, win) => {
       win.webContents.on('before-input-event', (event, input) => {
@@ -128,6 +132,7 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
+
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 // IPC: logs desde renderer
@@ -143,12 +148,44 @@ ipcMain.handle('sesiones:crear', async (_ev, payload) => {
   const modelo = payload?.modelo;
   return crearSesion(titulo, modelo);
 });
-ipcMain.handle('sesiones:updateModelo', async (_ev, { id, modelo }) => actualizarModeloSesion(id, modelo));
+function normalizeModelName(n) {
+  const map = { 'deepseek-r1': 'deepseek-reasoner', r1: 'deepseek-reasoner', reasoner: 'deepseek-reasoner' };
+  return map[n] || n;
+}
+function isAllowedModel(n) {
+  return n === 'deepseek-chat' || n === 'deepseek-reasoner';
+}
+
+ipcMain.handle('sesiones:updateModelo', async (_ev, { id, modelo }) => {
+  const normalized = normalizeModelName(modelo);
+  if (!isAllowedModel(normalized)) {
+    const e = new Error(`Modelo no soportado: ${modelo}`);
+    e.code = 'BAD_MODEL';
+    e.status = 400;
+    throw e;
+  }
+  return actualizarModeloSesion(id, normalized);
+});
+
 ipcMain.handle('sesiones:eliminar', async (_ev, sesionId) => eliminarSesionDB(sesionId));
 ipcMain.handle('historial:obtener', async (_ev, sesionId) => obtenerHistorial(sesionId));
-ipcMain.handle('chat:enviar', async (_ev, { sesionId, mensajes, modelOverride }) => {
-  const respuesta = await completarDeepseek(mensajes, modelOverride);
-  const ultimoUser = mensajes[mensajes.length - 1]?.content ?? '';
-  await guardarMensajePar(sesionId, ultimoUser, respuesta);
-  return respuesta;
+
+ipcMain.handle('chat:enviar', async (_ev, { sesionId, mensajes, modelOverride, requestId }) => {
+  try {
+    const respuesta = await completarDeepseek(mensajes, modelOverride, { requestId, timeoutMs: 60000 });
+    const ultimoUser = mensajes[mensajes.length - 1]?.content ?? '';
+    await guardarMensajePar(sesionId, ultimoUser, respuesta);
+    return respuesta;
+  } catch (e) {
+    const err = (e && typeof e === 'object') ? e : new Error(String(e));
+    const status = err.status || err.httpStatus || err.response?.status;
+    const code   = err.code || err.response?.data?.error?.code;
+    log('[chat:enviar:error]', { requestId, status, code, message: err.message });
+    const ex = new Error(err.message || 'chat:enviar failed');
+    ex.status = status;
+    ex.code = code;
+    ex.data = { requestId, stack: err.stack, status, code };
+    throw ex;
+  }
 });
+

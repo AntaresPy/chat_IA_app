@@ -13,7 +13,7 @@
 
   let lastFocused = null;
 
-  // En la IIFE del renderer (al comienzo)
+  // Reporte global de errores
   window.addEventListener('error', (e) => {
     try { window.telemetry?.error({ type: 'error', message: e.message, stack: e.error?.stack }); } catch {}
   });
@@ -21,39 +21,65 @@
     try { window.telemetry?.error({ type: 'unhandledrejection', reason: String(e.reason) }); } catch {}
   });
 
-  // Muestra banners enviados desde main
-  window.telemetry?.onBanner?.(({ type, text }) => {
+  // Banner helpers + SweetAlert
+  function showBanner(kind, text, autoHideMs) {
     const bar = document.getElementById('errorBanner');
     if (!bar) return;
+
+    bar.className = 'banner';
+    const kindClass = kind === 'err' ? 'is-err' : kind === 'warn' ? 'is-warn' : 'is-info';
+    bar.classList.add(kindClass);
     bar.textContent = text || '';
-    bar.className = 'banner ' + (type === 'warn' ? 'is-warn' : 'is-info');
-    bar.style.display = 'block';
+    if (text && text.trim()) {
+      bar.classList.add('is-visible');
+    } else {
+      bar.classList.remove('is-visible');
+    }
+
+    if (autoHideMs && Number.isFinite(autoHideMs)) {
+      window.clearTimeout(bar.__hideTimer__);
+      bar.__hideTimer__ = window.setTimeout(() => hideBanner(), autoHideMs);
+    }
+
+    // SweetAlert (si está disponible)
+    if (window.Swal && text) {
+      Swal.fire({
+        icon: kind === 'err' ? 'error' : kind === 'warn' ? 'warning' : 'info',
+        title: kind === 'err' ? 'Ocurrió un error' : kind === 'warn' ? 'Atención' : 'Aviso',
+        text,
+        confirmButtonText: 'Entendido',
+        heightAuto: false,
+      });
+    }
+  }
+  function hideBanner() {
+    const bar = document.getElementById('errorBanner');
+    if (!bar) return;
+    bar.className = 'banner';
+    bar.textContent = '';
+    if (bar.__hideTimer__) { window.clearTimeout(bar.__hideTimer__); bar.__hideTimer__ = undefined; }
+  }
+
+  // Banner remoto
+  window.telemetry?.onBanner?.(({ type, text }) => {
+    showBanner(type === 'warn' ? 'warn' : 'info', text);
   });
 
-  // Evita que atajos globales o el menubar “roben” el teclado cuando estás tipeando en el modal
+  // Guardas de foco en modal
   [inputTitulo, selectModelo].forEach(el => {
     if (!el) return;
-    el.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-    });
-    el.addEventListener('keypress', (e) => {
-      e.stopPropagation();
-    });
-    el.addEventListener('keyup', (e) => {
-      e.stopPropagation();
-    });
+    el.addEventListener('keydown', (e) => e.stopPropagation());
+    el.addEventListener('keypress', (e) => e.stopPropagation());
+    el.addEventListener('keyup', (e) => e.stopPropagation());
   });
 
-  function fmtFecha(d) {
-    try { return new Date(d).toLocaleString(); } catch { return ''; }
-  }
+  function fmtFecha(d) { try { return new Date(d).toLocaleString(); } catch { return ''; } }
   function preview(text, n = 90) {
     const t = String(text || '').replace(/\s+/g, ' ').trim();
     return t.length > n ? t.slice(0, n - 1) + '…' : t;
   }
 
   async function renderItem(s) {
-    // obtener historial y última respuesta (mejor la última del assistant; si no, la última en general)
     let lastMsg = null;
     try {
       const hist = await window.api.obtenerHistorial(s._id);
@@ -77,10 +103,9 @@
     btnDel.className = 'danger';
     btnDel.title = 'Eliminar conversación';
 
-    // UN SOLO CLICK en toda la tarjeta (excepto en el área de acciones)
-  li.addEventListener('click', (e) => {
-    const tgt = e.target;
-    if (tgt instanceof Element && tgt.closest('.item_actions')) return;
+    li.addEventListener('click', (e) => {
+      const tgt = e.target;
+      if (tgt instanceof Element && tgt.closest('.item_actions')) return;
       const id = encodeURIComponent(String(s._id));
       const t  = encodeURIComponent(String(s.titulo || ''));
       const m  = encodeURIComponent(String(s.modelo || ''));
@@ -88,15 +113,16 @@
     });
 
     btnDel.onclick = async () => {
-      if (confirm(`Eliminar la sesión "${s.titulo}"?`)) {
-        await window.api.eliminarSesion(s._id);
-        await cargarSesiones();
-      }
+      const proceed = window.Swal
+        ? (await Swal.fire({ icon:'question', title:'¿Eliminar?', text:`Eliminar la sesión "${s.titulo}"`, showCancelButton:true, confirmButtonText:'Sí, eliminar', cancelButtonText:'Cancelar', heightAuto:false })).isConfirmed
+        : confirm(`Eliminar la sesión "${s.titulo}"?`);
+      if (!proceed) return;
+      await window.api.eliminarSesion(s._id);
+      await cargarSesiones();
     };
 
     actions.appendChild(btnDel);
 
-    // leyenda inferior con última respuesta + fecha/hora
     const meta = document.createElement('div');
     meta.className = 'item_meta';
 
@@ -129,31 +155,19 @@
       lista.appendChild(frag);
     } catch (err) {
       window.telemetry?.error({ type: 'ipc', op: 'listarSesiones', message: String(err) });
-      const bar = document.getElementById('errorBanner');
-      if (bar) {
-        bar.textContent = 'No se pudo cargar la lista de conversaciones. Verificá la conexión con la BD.';
-        bar.className = 'banner is-warn';
-        bar.style.display = 'block';
-      }
+      showBanner('err', 'No se pudo cargar la lista de conversaciones. Verificá la conexión con la BD.');
     }
   }
 
-  // ===== Modal logic =====
+  // Modal
   function openModal() {
     lastFocused = document.activeElement;
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
-    // pequeña pausa para que el DOM pinte y luego focus
     setTimeout(() => {
-      if (inputTitulo) {
-        inputTitulo.removeAttribute('disabled');
-        inputTitulo.removeAttribute('readonly');
-        inputTitulo.focus();
-        inputTitulo.select();
-      }
+      if (inputTitulo) { inputTitulo.removeAttribute('disabled'); inputTitulo.removeAttribute('readonly'); inputTitulo.focus(); inputTitulo.select(); }
     }, 30);
   }
-
   function closeModal() {
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
@@ -161,23 +175,16 @@
     if (selectModelo) selectModelo.value = 'deepseek-chat';
     if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
   }
-
-  // Clic en fondo cierra
   modal && modal.addEventListener('click', (e) => {
     const isBackdrop = e.target instanceof HTMLElement && e.target.dataset.close === 'true';
     if (isBackdrop) closeModal();
   });
-
-  // Botones del modal (con guardas)
   btnNueva && btnNueva.addEventListener('click', openModal);
   btnCerrarModal && btnCerrarModal.addEventListener('click', closeModal);
   btnCancelar && btnCancelar.addEventListener('click', closeModal);
 
   modal.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      closeModal();
-    }
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
     if (e.key === 'Enter' && (e.target === inputTitulo || e.target === selectModelo)) {
       e.preventDefault();
       crearSesionDesdeModal();
@@ -189,7 +196,6 @@
     const titulo = (inputTitulo.value || '').trim() || 'Nueva conversación';
     const modelo = (selectModelo?.value || 'deepseek-chat');
     btnCrear.disabled = true;
-
     try {
       const sesion = await window.api.crearSesion({ titulo, modelo });
       await cargarSesiones();
@@ -197,6 +203,8 @@
       const t  = encodeURIComponent(String(sesion.titulo || ''));
       const m  = encodeURIComponent(String(sesion.modelo || modelo || ''));
       window.location.href = `./chat.html?sid=${id}&t=${t}&m=${m}`;
+    } catch (e) {
+      showBanner('err', 'No se pudo crear la conversación.');
     } finally {
       btnCrear.disabled = false;
       closeModal();
