@@ -11,13 +11,81 @@
 
   let sessionModel = null;
 
-  // Pre-carga de UI con datos de la URL (mejor UX al abrir)
+  // ===== helpers de errores/UX =====
+  function showBanner(kind, text, autoHideMs) {
+    const bar = document.getElementById('errorBanner');
+    if (!bar) return;
+
+    bar.className = 'banner';
+    const kindClass = kind === 'err' ? 'is-err' : kind === 'warn' ? 'is-warn' : 'is-info';
+    bar.classList.add(kindClass);
+    bar.textContent = text || '';
+    if (text && text.trim()) bar.classList.add('is-visible'); else bar.classList.remove('is-visible');
+
+    if (autoHideMs && Number.isFinite(autoHideMs)) {
+      window.clearTimeout(bar.__hideTimer__);
+      bar.__hideTimer__ = window.setTimeout(() => hideBanner(), autoHideMs);
+    }
+
+    if (window.Swal && text) {
+      Swal.fire({
+        icon: kind === 'err' ? 'error' : kind === 'warn' ? 'warning' : 'info',
+        title: kind === 'err' ? 'Ocurrió un error' : kind === 'warn' ? 'Atención' : 'Aviso',
+        text,
+        confirmButtonText: 'Entendido',
+        heightAuto: false,
+      });
+    }
+  }
+  function hideBanner() {
+    const bar = document.getElementById('errorBanner');
+    if (!bar) return;
+    bar.className = 'banner';
+    bar.textContent = '';
+    if (bar.__hideTimer__) { window.clearTimeout(bar.__hideTimer__); bar.__hideTimer__ = undefined; }
+  }
+
+  function withTimeout(promise, ms, label = 'operation') {
+    let to;
+    const timeout = new Promise((_, rej) => {
+      to = setTimeout(() => rej(new Error(`timeout:${label}:${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(to));
+  }
+  function newRequestId() {
+    try { return crypto.randomUUID(); } catch { return 'req_' + Math.random().toString(36).slice(2); }
+  }
+  function normalizeIpcError(err) {
+    const base = { message: '', status: undefined, code: undefined, requestId: undefined, stack: undefined };
+    if (!err) return { ...base, message: 'Error desconocido' };
+    if (typeof err === 'string') return { ...base, message: err };
+    const any = err;
+    const data = any.data || any.cause || {};
+    return {
+      message: any.message || String(any),
+      status: any.status ?? data.status,
+      code: any.code ?? data.code,
+      requestId: any.requestId ?? data.requestId,
+      stack: any.stack || data.stack,
+    };
+  }
+  function appendDiagBubble(diag) {
+    const { message, status, code, requestId } = diag;
+    const lines = [];
+    lines.push('⚠️ Hubo un problema al consultar la IA.');
+    if (status)   lines.push(`• status: ${status}`);
+    if (code)     lines.push(`• code: ${code}`);
+    if (requestId)lines.push(`• id: ${requestId}`);
+    if (message)  lines.push(`• msg: ${message}`);
+    appendMsg('assistant', lines.join('\n'));
+  }
+
+  // Precarga de título/modelo
   const tParam = qs.get('t');
   const mParam = qs.get('m');
   if (tParam && tParam.trim()) tituloSesion.textContent = decodeURIComponent(tParam);
   if (mParam && mParam.trim()) {
     sessionModel = decodeURIComponent(mParam);
-    // si coincide con alguna opción, refléjalo en el select
     const opt = Array.from(selectModelo.options).some(o => o.value === sessionModel);
     if (opt) selectModelo.value = sessionModel;
   }
@@ -35,47 +103,27 @@
   const btnEnviar = document.getElementById('btnEnviar');
 
   if (!sesionId) {
-    alert('Falta el parámetro sid.');
+    showBanner('err', 'Falta el parámetro "sid".');
     window.location.href = './index.html';
     return;
   }
 
-  //let sessionModel = null;
   let currentSesionDoc = null;
-
   btnVolver.onclick = () => (window.location.href = './index.html');
 
-  // ===== util =====
   function scrollAlFinal() { historial.scrollTop = historial.scrollHeight; }
 
-  function addCopyButton(bubble) {
-    const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'copy-btn'; btn.textContent = 'Copiar';
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const text = bubble.textContent || '';
-      try {
-        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
-        else { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
-        const old = btn.textContent; btn.textContent = 'Copiado'; setTimeout(() => (btn.textContent = old), 1200);
-      } catch { const old = btn.textContent; btn.textContent = 'Error'; setTimeout(() => (btn.textContent = old), 1200); }
-    });
-    bubble.appendChild(btn);
-  }
-
-  // === Formateo de bloques de código (```lang ... ``` o '''lang ... ''') ===
   function escapeHtml(s = '') {
     return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
   function buildFormattedHtmlFromText(text = '') {
-    const fence = /(```|''')([\w-]+)?\n([\s\S]*?)\1/g; // mismo fence de apertura/cierre
+    const fence = /(```|''')([\w-]+)?\n([\s\S]*?)\1/g;
     let html = '';
     let last = 0;
     let m;
 
     while ((m = fence.exec(text))) {
-      // texto normal previo
       if (m.index > last) {
         const chunk = text.slice(last, m.index);
         html += `<p class="p">${escapeHtml(chunk).replace(/\n{2,}/g, '\n\n').replace(/\n/g,'<br>')}</p>`;
@@ -93,7 +141,6 @@
       last = fence.lastIndex;
     }
 
-    // resto (si no hubo más fences)
     if (last < text.length) {
       const chunk = text.slice(last);
       html += `<p class="p">${escapeHtml(chunk).replace(/\n{2,}/g, '\n\n').replace(/\n/g,'<br>')}</p>`;
@@ -105,8 +152,6 @@
     const raw = bubble.textContent || '';
     const html = buildFormattedHtmlFromText(raw);
     bubble.innerHTML = html;
-
-    // eventos para “Copiar” del bloque de código
     bubble.querySelectorAll('.copy-code').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -133,7 +178,7 @@
     historial.appendChild(wrap);
     scrollAlFinal();
     if (rol === 'assistant' && contenido) {
-      formatAssistantBubble(bubble); // solo code-blocks tendrán su propio “Copiar”
+      formatAssistantBubble(bubble);
     }
     return bubble;
   }
@@ -154,21 +199,34 @@
 
   // ===== data =====
   async function cargarSesion() {
-    const sesion = await window.api.obtenerSesion(sesionId);
-    currentSesionDoc = sesion;
-    if (sesion?.titulo) tituloSesion.textContent = sesion.titulo;
-    sessionModel = sesion?.modelo || null;
-    if (sessionModel) selectModelo.value = sessionModel;
+    try {
+      const sesion = await withTimeout(window.api.obtenerSesion(sesionId), 10000, 'obtenerSesion');
+      currentSesionDoc = sesion;
+      if (sesion?.titulo) tituloSesion.textContent = sesion.titulo;
+      sessionModel = sesion?.modelo || null;
+      if (sessionModel) selectModelo.value = sessionModel;
+    } catch (e) {
+      const diag = normalizeIpcError(e);
+      window.telemetry?.error({ type: 'ipc', op: 'obtenerSesion', ...diag });
+      showBanner('err', 'No se pudo cargar la sesión. Verificá la conexión a la BD.');
+    }
   }
 
   async function cargarHistorial() {
-    const items = await window.api.obtenerHistorial(sesionId);
-    historial.innerHTML = '';
-    items.forEach((m) => appendMsg(m.rol, m.contenido));
+    try {
+      const items = await withTimeout(window.api.obtenerHistorial(sesionId), 15000, 'obtenerHistorial');
+      historial.innerHTML = '';
+      items.forEach((m) => appendMsg(m.rol, m.contenido));
+    } catch (e) {
+      const diag = normalizeIpcError(e);
+      window.telemetry?.error({ type: 'ipc', op: 'obtenerHistorial', ...diag });
+      showBanner('err', 'No se pudo cargar el historial. Intentá recargar la página.');
+      return;
+    }
 
-    // Fallback de título si no vino de DB
     if (tituloSesion.textContent === 'Chat') {
-      const primerUser = items.find((m) => m.rol === 'user');
+      const items = Array.from(historial.querySelectorAll('.msg.user .bubble')).map(b => ({ rol:'user', contenido:b.textContent||'' }));
+      const primerUser = items[0];
       if (primerUser) tituloSesion.textContent = primerUser.contenido.slice(0, 42);
     }
   }
@@ -203,9 +261,18 @@
     txt.value = ''; autoGrow(txt);
     appendMsg('user', contenido);
 
-    const historialDocs = await window.api.obtenerHistorial(sesionId);
-    const mensajesPrev = historialDocs.map((d) => ({ role: d.rol === 'assistant' ? 'assistant' : 'user', content: d.contenido }));
+    let historialDocs = [];
+    try {
+      historialDocs = await withTimeout(window.api.obtenerHistorial(sesionId), 10000, 'obtenerHistorial');
+    } catch (e) {
+      const diag = normalizeIpcError(e);
+      window.telemetry?.error({ type: 'ipc', op: 'obtenerHistorial(pre-envio)', ...diag });
+      showBanner('err', 'No se pudo preparar el contexto del chat.');
+      enviando = false; btnEnviar.disabled = false;
+      return;
+    }
 
+    const mensajesPrev = historialDocs.map((d) => ({ role: d.rol === 'assistant' ? 'assistant' : 'user', content: d.contenido }));
     const mensajes = [
       { role: 'system', content: 'Eres un asistente útil y conciso. Responde de manera clara en español.' },
       ...mensajesPrev.slice(-10),
@@ -213,22 +280,44 @@
     ];
 
     const typingNode = appendTyping();
+    const requestId = newRequestId();
 
     try {
-      const respuesta = await window.api.enviarChat({
+      const respuesta = await withTimeout(window.api.enviarChat({
         sesionId,
         mensajes,
         modelOverride: sessionModel || undefined,
-      });
+        requestId,
+      }), 60000, 'enviarChat');
+
       typingNode.remove();
       const bubble = appendMsg('assistant', '');
       await typeWriter(bubble, respuesta, 15);
-      formatAssistantBubble(bubble); // sin botón global
+      formatAssistantBubble(bubble);
 
     } catch (err) {
       typingNode.remove();
-      console.error(err);
-      appendMsg('assistant', 'Lo siento, ocurrió un error al procesar tu mensaje.');
+      const diag = normalizeIpcError(err);
+      window.telemetry?.error({ type: 'ipc', op: 'enviarChat', ...diag, requestId });
+
+      const bannerText = diag.status
+        ? `La IA respondió con error (status ${diag.status}).`
+        : (String(diag.message || '').startsWith('timeout:') ? 'La solicitud a la IA excedió el tiempo de espera.' : 'No se pudo completar la solicitud a la IA.');
+      showBanner(diag.status ? 'warn' : 'err', bannerText);
+
+      // Modal con detalles (si SweetAlert está)
+      if (window.Swal) {
+        const html = `
+          <div style="text-align:left;font-size:13px;line-height:1.35">
+            <div><strong>requestId:</strong> ${escapeHtml(diag.requestId || '')}</div>
+            <div><strong>status:</strong> ${escapeHtml(String(diag.status ?? ''))}</div>
+            <div><strong>code:</strong> ${escapeHtml(String(diag.code ?? ''))}</div>
+            <div><strong>mensaje:</strong> ${escapeHtml(String(diag.message || ''))}</div>
+          </div>`;
+        Swal.fire({ icon:'error', title:'Error al consultar la IA', html, confirmButtonText:'Cerrar', heightAuto:false });
+      }
+
+      appendDiagBubble({ ...diag, requestId });
     } finally {
       enviando = false; btnEnviar.disabled = false;
     }
@@ -241,8 +330,8 @@
       await window.api.actualizarModelo(sesionId, nuevo);
       sessionModel = nuevo;
     } catch (e) {
-      console.error('No se pudo actualizar el modelo:', e);
-      // revertir UI
+      window.telemetry?.error({ type:'ipc', op:'actualizarModelo', message:String(e) });
+      showBanner('err', 'No se pudo actualizar el modelo.');
       selectModelo.value = sessionModel || 'deepseek-chat';
     }
   });
@@ -261,7 +350,6 @@
 
   btnConfirmarDesc.addEventListener('click', async () => {
     try {
-      // formato elegido
       const fmt = Array.from(modal.querySelectorAll('input[name="fmt"]')).find(i => i.checked)?.value || 'txt';
       const includeMeta = !!chkMeta.checked;
 
@@ -291,7 +379,6 @@
         a.click();
         URL.revokeObjectURL(a.href);
       } else {
-        // TXT
         const lines = [];
         if (includeMeta) {
           lines.push(`# ${sesion?.titulo || 'Chat'}`);
@@ -299,9 +386,7 @@
           lines.push(`Exportado: ${now.toLocaleString()}`);
           lines.push(''); lines.push('---'); lines.push('');
         }
-        for (const m of items) {
-          lines.push(`[${m.rol}] ${m.contenido}`);
-        }
+        for (const m of items) lines.push(`[${m.rol}] ${m.contenido}`);
         const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -309,12 +394,14 @@
         a.click();
         URL.revokeObjectURL(a.href);
       }
+    } catch (e) {
+      showBanner('err', 'No se pudo exportar la conversación.');
     } finally {
       closeDownloadModal();
     }
   });
 
-  // ===== wiring =====
+  // Wiring
   txt.addEventListener('input', () => autoGrow(txt));
   txt.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } });
   btnEnviar.addEventListener('click', enviar);
